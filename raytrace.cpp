@@ -18,9 +18,13 @@
 #include "Sphere.h"
 #include "Ray.h"
 #include "Camera.h"
-#include "Light.h"
+//#include "Light.h"
+#include "DirectionalLight.h"
 #include "Scene.h"
+#include "PointLight.h"
 using namespace std;
+
+
 
 float vertices[] = {  //These values should be updated to match the square's state when it changes
 					  //  X     Y     R     G     B     U    V
@@ -68,27 +72,38 @@ Vector3 getColor(Intersection inter, Scene scene, Vector3 v) {
 	
 	Vector3 result;
 	for (int i = 0; i < scene.lights.size(); i++) {
-		Light light = scene.lights[i];
-		Vector3 l = light.pos - inter.poi; // light direction
-
-
+		Light* ablight = scene.lights[i];
+		DirectionalLight* lg;
+		Vector3 light_intensity;
+		Vector3 l;
+		switch (ablight->type)
+		{
+		case 0: //Point Light
+			l = ablight->pos - inter.poi; // light direction
+			light_intensity = ablight->intensity * (1 / l.MagSquared());//Falloff at 1 / d^2
+			break;
+		case 1: //Directional Light
+			l = ablight->pos; //Directional light's direction is stored in the pos attribute
+			light_intensity = ablight->intensity; //No falloff
+			break;
+		default:
+			break;
+		}
 		/// Calculate Shadows:
 		//	 cast another ray from the point of intersection to the light, 
 		//	 If it hits an object, that point is a shadow
 
-									    //l * 0.01 is Fudge Factor, reduce shadow acne
+									//l * 0.01 is Fudge Factor, reduce shadow acne
 		Ray shadowray = Ray(inter.poi + l * 0.01, l);
-		Intersection int_light = FindIntersection(shadowray, scene);
+		Intersection int_light = FindIntersection(shadowray, scene); //Slow, don't need to know which surface hit first
 		Vector3 intensity;
 		if (int_light.collided) {
 			intensity = Vector3(0, 0, 0); //Shadow
 		}
 		else {
-			intensity = light.intensity; //Not Shadow
+			intensity = light_intensity;
 		}
-
-
-
+	
 		float d = inter.normal.Dot(l.Normalized());
 		float f = 0;
 		if (d > 0) {
@@ -103,9 +118,9 @@ Vector3 getColor(Intersection inter, Scene scene, Vector3 v) {
 		float f2 = 0;
 		if (s > 0) {
 			f2 = pow(s, inter.mat.p);
-		}											// light falls off at 1 / d^2
-		Vector3 specular = inter.mat.Ks * intensity * (1 / l.MagSquared()) * f2;										
-		Vector3 diffuse = inter.mat.Kd * intensity * (1 / l.MagSquared()) * f;
+		}
+		Vector3 specular = inter.mat.Ks * intensity * f2;										
+		Vector3 diffuse = inter.mat.Kd * intensity * f;
 		result = result + diffuse + specular;
 	}
 	Vector3 ambient = inter.mat.Ka * scene.ambient_light.x;
@@ -162,7 +177,7 @@ void mouseDragged(float m_x, float m_y) {
 Scene parsefile() {
 	string line;
 
-	string fileName = "Stink_Sphere.scn";
+	string fileName = "spheres2.scn";
 
 	Scene result;
 	Material cur_matieral; //Current material
@@ -220,7 +235,15 @@ Scene parsefile() {
 			float r, g, b;
 			float x, y, z;
 			input >> r >> g >> b >> x >> y >> z;
-			result.AddLight(Light(Vector3(x, y, z), Vector3(r, g, b)));
+			result.AddLight(new PointLight(Vector3(x, y, z), Vector3(r, g, b)));
+			printf("Point Light at: (%f,%f,%f)\n", x, y, z);
+		}
+
+		else if (command == "directional_light") {
+			float r, g, b;
+			float x, y, z;
+			input >> r >> g >> b >> x >> y >> z;
+			result.AddLight(new DirectionalLight(Vector3(x, y, z), Vector3(r, g, b)));
 			printf("Point Light at: (%f,%f,%f)\n", x, y, z);
 		}
 

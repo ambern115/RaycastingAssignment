@@ -13,13 +13,13 @@ class Scene {
 public:
 	Camera c;
 	std::vector<Primitive*> objects;
-	std::vector<Light> lights;
+	std::vector<Light*> lights;
 	float width;
 	float height;
 	Vector3 background;
 	float max_depth;
 	Vector3 ambient_light;
-	Scene(Camera c_, std::vector<Primitive*> o_, std::vector<Light> l_, float w_, float h_, Vector3 b_, Vector3 a_, float m_) {
+	Scene(Camera c_, std::vector<Primitive*> o_, std::vector<Light*> l_, float w_, float h_, Vector3 b_, Vector3 a_, float m_) {
 		c = c_;
 		objects = o_;
 		lights = l_;
@@ -33,7 +33,7 @@ public:
 	Scene() {
 		c = Camera(Vector3(0, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0), 45);
 		objects = std::vector<Primitive*>();
-		lights = std::vector<Light>();
+		lights = std::vector<Light*>();
 		width = 640;
 		height = 480;
 		background = Vector3(15, 15, 15);
@@ -45,7 +45,7 @@ public:
 		objects.push_back(o);
 	}
 
-	void AddLight(Light l) {
+	void AddLight(Light* l) {
 		lights.push_back(l);
 	}
 

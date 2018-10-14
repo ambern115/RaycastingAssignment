@@ -1,7 +1,8 @@
 #This is a sphere lit by an ambient light on a white background.
-material 1 .1 .1 1 .2 .2 1 1 1 10 0 0 0 1
-sphere -1 -1 4 1
+material 1 .1 1 1 .2 .2 1 1 1 100 0 0 0 1
+sphere -1.5 0 3 1
+material 1 .1 1 1 .2 .2 1 1 1 10 0 0 0 1
+sphere 1.5 0 3 1
 ambient_light .3 .3 .3
-point_light 5 5 5 1 1 2
-point_light 15 15 5 -1 -1 -2
-background .5 .5 .5
+point_light 2 2 2 0 0 0
+background .5 .9 .5

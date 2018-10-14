@@ -10,9 +10,7 @@
 
 class DirectionalLight : public Light {
 public:
-	Vector3 direction;
-	DirectionalLight(Vector3 pos_, Vector3 intensity_, Vector3 direction_) : Light(pos_, intensity), direction(direction_) {}
-
+	DirectionalLight(Vector3 pos_, Vector3 intensity_) : Light(pos_, intensity_, 1) {}
 };
 
 #endif
