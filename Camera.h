@@ -10,12 +10,12 @@
 class Camera {
 public:
 	Vector3 eye; //Eye position
-	float distance; //Distance to viewing plane
+	float h; //Distance to viewing plane
 	Vector3 u, v, w; //Camera accross, up, and look vectors
 
-	Camera(Vector3 e_, Vector3 a_, Vector3 b_, float d_) {
+	Camera(Vector3 e_, Vector3 a_, Vector3 b_, float h_) {
 		eye = e_; 
-		distance = d_;
+		h = h_;
 		w = a_.Normalized();
 		u = b_.Cross(w).Normalized();
 		v = u.Cross(w);
@@ -23,7 +23,7 @@ public:
 
 	Camera() {
 		eye = Vector3(0, 0, 0);
-		distance = 0;
+		h = 0;
 		u, v, w = Vector3(0, 0, 0);
 	}
 

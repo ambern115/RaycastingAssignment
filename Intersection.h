@@ -18,7 +18,7 @@ class Intersection { //Class holding the Primitive hit, and distance travelled b
   
 	Intersection(Material mat_, float t_, bool collided_, Vector3 normal_, Vector3 poi_) {
 		mat = mat_;
-		t = t;
+		t = t_;
 		collided = collided_;
 		normal = normal_;
 		poi = poi_;

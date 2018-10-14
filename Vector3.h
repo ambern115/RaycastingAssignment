@@ -29,6 +29,9 @@ class Vector3 {
 	//Calculates length of the vector
 	float Magnitude();
 
+	//Calculates 1 / d^2 for simple light calculation
+	float MagSquared();
+
 	//Calculates distance between two vectors
 	float Distance(const Vector3& v);
 

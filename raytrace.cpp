@@ -43,15 +43,53 @@ void mouseDragged(float mx, float my);
 
 
 
+Intersection FindIntersection(Ray ray, Scene scene) {
+	Intersection temp = Intersection();
+	if (scene.objects.size() < 0)
+		return temp;
+	float min_t = 99;
+	for (int k = 0; k < scene.objects.size(); k++) {
+		Sphere* s = dynamic_cast<Sphere*>(scene.objects[k]);
+		Intersection inter = s->Intersect(ray);
+		if (inter.collided && inter.t > 0.01 && inter.t < min_t) {
+			min_t = inter.t;
+			temp = inter;
+		}
+	}
+
+	return temp;
+}
+
 Vector3 getColor(Intersection inter, Scene scene, Vector3 v) {
+	
 	if (scene.lights.empty()) {
 		return scene.ambient_light;
 	}
 	
 	Vector3 result;
 	for (int i = 0; i < scene.lights.size(); i++) {
-		Vector3 l = scene.lights[i].pos - inter.poi;
-		float d = inter.normal.Normalized().Dot(l.Normalized());
+		Light light = scene.lights[i];
+		Vector3 l = light.pos - inter.poi; // light direction
+
+
+		/// Calculate Shadows:
+		//	 cast another ray from the point of intersection to the light, 
+		//	 If it hits an object, that point is a shadow
+
+									    //l * 0.01 is Fudge Factor, reduce shadow acne
+		Ray shadowray = Ray(inter.poi + l * 0.01, l);
+		Intersection int_light = FindIntersection(shadowray, scene);
+		Vector3 intensity;
+		if (int_light.collided) {
+			intensity = Vector3(0, 0, 0); //Shadow
+		}
+		else {
+			intensity = light.intensity; //Not Shadow
+		}
+
+
+
+		float d = inter.normal.Dot(l.Normalized());
 		float f = 0;
 		if (d > 0) {
 			f = d;
@@ -61,40 +99,20 @@ Vector3 getColor(Intersection inter, Scene scene, Vector3 v) {
 		//need viewing direction: v
 		//compute hacky half vector instead of getting reflectance of light 
 		Vector3 h = (v + l).Normalized();
-		float s = inter.normal.Normalized().Dot(h.Normalized());
+		float s = inter.normal.Dot(h);
 		float f2 = 0;
 		if (s > 0) {
-			f2 = pow(s, 14);
-		}
-		Vector3 specular = inter.mat.Ks * scene.lights[i].intensity * (1 / l.Magnitude()) * f2;
-		specular.Clamp();
-		Vector3 diffuse = inter.mat.Kd * scene.lights[i].intensity * (1 / l.Magnitude()) * f;
-		diffuse.Clamp();
+			f2 = pow(s, inter.mat.p);
+		}											// light falls off at 1 / d^2
+		Vector3 specular = inter.mat.Ks * intensity * (1 / l.MagSquared()) * f2;										
+		Vector3 diffuse = inter.mat.Kd * intensity * (1 / l.MagSquared()) * f;
 		result = result + diffuse + specular;
-		result.Clamp();
 	}
 	Vector3 ambient = inter.mat.Ka * scene.ambient_light.x;
-	ambient.Clamp();
 	result = result + ambient;
 	result.Clamp();
 	return result;
 }
-
-/*Intersection FindIntersection(Ray ray, Scene scene) {
-	Intersection temp;
-	float min_t_value = 9999999999999;
-	Intersection result;
-	for (int i = 0; i < scene.objects.size(); i++) {
-		Sphere* s = dynamic_cast <Sphere *>(scene.objects[i]);
-		temp = s->Intersect(ray);
-		if (temp.collided && min_t_value > temp.t) {
-			result = temp;
-			min_t_value = temp.t;
-		}
-	}
-	return temp;
-}
-*/
 
 unsigned char* raycast(Scene scene) {
 	//(position in space, distance b/w camera and near plane, up vector (determines ratio of smaller square to larger square
@@ -105,31 +123,28 @@ unsigned char* raycast(Scene scene) {
 	screen_width = scene.width;
 	int img_w = screen_width;
 	int img_h = screen_height;
-	float aspect = img_w / (float)img_h; //set x and y vals you give to camera
+	float aspect = img_w / (float)img_h; 
 	unsigned char* img_data = new unsigned char[4 * img_w*img_h]; //
-	for (int i = 0; i < img_h; i++) { //x?
-		for (int j = 0; j < img_w; j++) { //y?
+	float fov = tan(c.h * M_PI / 180);
+	//set x and y vals you give to camera
+	for (int i = 0; i < img_h; i++) {
+		for (int j = 0; j < img_w; j++) {
+			//Set background color, then overwrite if an object was hit by the camera ray
 			img_data[i*img_w * 4 + j * 4] = scene.background.x;        //Red
 			img_data[i*img_w * 4 + j * 4 + 1] = scene.background.y;    //Green
 			img_data[i*img_w * 4 + j * 4 + 2] = scene.background.z;    //Blue
 			img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
-			float x = (2 * (j + 0.5) / (float)img_w - 1) * aspect;
-			float y = (1 - 2 * (i + 0.5) / (float)img_h);
+			float x = (2 * (j + 0.5) / (float)img_w - 1) * aspect * fov; //Get x and y in range of (-1, 1)
+			float y = (1 - 2 * (i + 0.5) / (float)img_h) * fov;
 			//x and y on the near plane
-			//assumes 45 degree angle
-			for (int k = 0; k < scene.objects.size(); k++) {
-				Ray r = c.GetRay((float)x, (float)y); //giving camera the pixel to shoot ray through
-				//Intersection inter = FindIntersection(r, scene);
-				Sphere* s = dynamic_cast<Sphere*>(scene.objects[k]);
-				Intersection inter = s->Intersect(r);
-				//Intersection inter = FindIntersection(r, scene);
-				if (inter.collided == true) { //previously if vector is a null ptr...
-					Vector3 color = getColor(inter, scene, c.w);
-					img_data[i*img_w * 4 + j * 4] = color.x; //Red
-					img_data[i*img_w * 4 + j * 4 + 1] = color.y;  //Green
-					img_data[i*img_w * 4 + j * 4 + 2] = color.z;  //Blue
-					img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
-				}
+			Ray r = c.GetRay((float)x, (float)y); //giving camera the pixel to shoot ray through
+			Intersection inter = FindIntersection(r, scene);
+			if (inter.collided == true) { //previously if vector is a null ptr...
+				Vector3 color = getColor(inter, scene, c.w);
+				img_data[i*img_w * 4 + j * 4] = color.x; //Red
+				img_data[i*img_w * 4 + j * 4 + 1] = color.y;  //Green
+				img_data[i*img_w * 4 + j * 4 + 2] = color.z;  //Blue
+				img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
 			}
 		}
 	}
@@ -147,7 +162,7 @@ void mouseDragged(float m_x, float m_y) {
 Scene parsefile() {
 	string line;
 
-	string fileName = "spheres1.scn";
+	string fileName = "Stink_Sphere.scn";
 
 	Scene result;
 	Material cur_matieral; //Current material
@@ -303,6 +318,12 @@ int main(int argc, char *argv[]) {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
+	//parsescene file, and set screen resolution
+	Scene scene = parsefile();
+	unsigned char* img_data = raycast(scene);
+	int img_w = screen_width;
+	int img_h = screen_height;
+
 	//Create a window (offsetx, offsety, width, height, flags)
 	SDL_Window* window = SDL_CreateWindow("Raycaster", 100, 100, screen_width, screen_height, SDL_WINDOW_OPENGL);
 
@@ -341,10 +362,7 @@ int main(int argc, char *argv[]) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	// = Scene(Camera(), std::vector<Primitive*>(), std::vector<Light>());
-	Scene scene = parsefile();
-	unsigned char* img_data = raycast(scene);
-	int img_w = screen_width;
-	int img_h = screen_height;
+	
 
 	//Load the texture into memory
 	printf("Spot 1");

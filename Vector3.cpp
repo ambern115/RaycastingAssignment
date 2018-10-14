@@ -22,6 +22,10 @@ float Vector3::Magnitude() {
 	return sqrt(x * x + y * y + z * z);
 }
 
+float Vector3::MagSquared() {
+	return (x * x + y * y + z * z);
+}
+
 float Vector3::Distance(const Vector3& v) {
 	float dist_x = v.x - x;
 	float dist_y = v.y - y;
