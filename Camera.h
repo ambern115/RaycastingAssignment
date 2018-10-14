@@ -18,13 +18,19 @@ public:
 		distance = d_;
 		w = a_.Normalized();
 		u = b_.Cross(w).Normalized();
-		v = w.Cross(u);
+		v = u.Cross(w);
+	}
+
+	Camera() {
+		eye = Vector3(0, 0, 0);
+		distance = 0;
+		u, v, w = Vector3(0, 0, 0);
 	}
 
 	//Camera(Vector3 e_, float d_, Vector3 u_, Vector3 v_, Vector3 w_) : eye(e_), distance(d_), u(u_), v(v_) , w(w_) {}
 	Ray GetRay(float x, float y) {
-		Vector3 s = eye + u * x + v * y - w * distance; //point on the near plane
-		return Ray(eye, s - eye); 
+		Vector3 s = eye + u * x + v * y + w * 1; //point on the near plane
+		return Ray(eye, (s - eye)); 
 	}
 };
 

@@ -10,9 +10,9 @@
 class Light {
 public:
 	Vector3 pos; //position 
-	float intensity; 
+	Vector3 intensity;
 
-	Light(Vector3 pos_, float intensity_) {
+	Light(Vector3 pos_, Vector3 intensity_) {
 		pos = pos_;
 		intensity = intensity_;
 	}

@@ -19,6 +19,7 @@
 #include "Ray.h"
 #include "Camera.h"
 #include "Light.h"
+#include "Scene.h"
 using namespace std;
 
 float vertices[] = {  //These values should be updated to match the square's state when it changes
@@ -42,81 +43,99 @@ void mouseDragged(float mx, float my);
 
 
 
-Vector3 getColor(Intersection inter, Light light, Vector3 v) {
-	Vector3 l = inter.poi - light.pos;
-	float d = inter.normal.Normalized().Dot(l.Normalized());
-
-	float f = 0;
-	if (d > 0) {
-		f = d;
+Vector3 getColor(Intersection inter, Scene scene, Vector3 v) {
+	if (scene.lights.empty()) {
+		return scene.ambient_light;
 	}
+	
+	Vector3 result;
+	for (int i = 0; i < scene.lights.size(); i++) {
+		Vector3 l = scene.lights[i].pos - inter.poi;
+		float d = inter.normal.Normalized().Dot(l.Normalized());
+		float f = 0;
+		if (d > 0) {
+			f = d;
+		}
 
-	//Blinn Phong
-	//need viewing direction: v
-	//compute hacky half vector instead of getting reflectance of light 
-	Vector3 h = (v + l).Normalized();
-	float s = inter.normal.Normalized().Dot(h.Normalized());
-
-	float f2 = 0;
-	if (s > 0) {
-		f2 = pow(s, 14);
+		//Blinn Phong
+		//need viewing direction: v
+		//compute hacky half vector instead of getting reflectance of light 
+		Vector3 h = (v + l).Normalized();
+		float s = inter.normal.Normalized().Dot(h.Normalized());
+		float f2 = 0;
+		if (s > 0) {
+			f2 = pow(s, 14);
+		}
+		Vector3 specular = inter.mat.Ks * scene.lights[i].intensity * (1 / l.Magnitude()) * f2;
+		specular.Clamp();
+		Vector3 diffuse = inter.mat.Kd * scene.lights[i].intensity * (1 / l.Magnitude()) * f;
+		diffuse.Clamp();
+		result = result + diffuse + specular;
+		result.Clamp();
 	}
-
-	Vector3 specular = Vector3(200,200,200) * light.intensity * f2;
-	specular.Clamp();
-
-	Vector3 diffuse = inter.color * light.intensity * f;
-	diffuse.Clamp();
-
-	Vector3 result = diffuse + specular;
-
-
+	Vector3 ambient = inter.mat.Ka * scene.ambient_light.x;
+	ambient.Clamp();
+	result = result + ambient;
 	result.Clamp();
-
 	return result;
 }
 
-//TODO: Read from ASCII (P6) PPM files
-//Inputs are output variables for returning the image width and heigth
-unsigned char* raycast() {
-	Sphere s = Sphere(0, 0, 6, 2.5, Vector3(200, 20, 25)); //x, y, z, radius
-	Light l = Light(Vector3(3,3,0), 1);
+/*Intersection FindIntersection(Ray ray, Scene scene) {
+	Intersection temp;
+	float min_t_value = 9999999999999;
+	Intersection result;
+	for (int i = 0; i < scene.objects.size(); i++) {
+		Sphere* s = dynamic_cast <Sphere *>(scene.objects[i]);
+		temp = s->Intersect(ray);
+		if (temp.collided && min_t_value > temp.t) {
+			result = temp;
+			min_t_value = temp.t;
+		}
+	}
+	return temp;
+}
+*/
+
+unsigned char* raycast(Scene scene) {
 	//(position in space, distance b/w camera and near plane, up vector (determines ratio of smaller square to larger square
 	// right vector (also defines ,size of near plane?), point its pointing to)
-	Camera c = Camera(Vector3(0,0,0), Vector3(0,0,-1), Vector3(0,1,0), 2); 
+	Camera c = scene.c;
+	
+	screen_height = scene.height;
+	screen_width = scene.width;
 	int img_w = screen_width;
 	int img_h = screen_height;
 	float aspect = img_w / (float)img_h; //set x and y vals you give to camera
 	unsigned char* img_data = new unsigned char[4 * img_w*img_h]; //
 	for (int i = 0; i < img_h; i++) { //x?
 		for (int j = 0; j < img_w; j++) { //y?
+			img_data[i*img_w * 4 + j * 4] = scene.background.x;        //Red
+			img_data[i*img_w * 4 + j * 4 + 1] = scene.background.y;    //Green
+			img_data[i*img_w * 4 + j * 4 + 2] = scene.background.z;    //Blue
+			img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
 			float x = (2 * (j + 0.5) / (float)img_w - 1) * aspect;
 			float y = (1 - 2 * (i + 0.5) / (float)img_h);
 			//x and y on the near plane
-
 			//assumes 45 degree angle
-			Ray r = c.GetRay((float)x, (float)y); //giving camera the pixel to shoot ray through
-			Intersection inter = s.Intersect(r); 
-
-			if (inter.collided == true) { //previously if vector is a null ptr...
-				Vector3 color = getColor(inter, l, c.w);
-				img_data[i*img_w * 4 + j * 4] = color.x; //Red
-				img_data[i*img_w * 4 + j * 4 + 1] = color.y;  //Green
-				img_data[i*img_w * 4 + j * 4 + 2] = color.z;  //Blue
-				img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
-			}
-			else {
-				img_data[i*img_w * 4 + j * 4] = 0;        //Red
-				img_data[i*img_w * 4 + j * 4 + 1] = 0;    //Green
-				img_data[i*img_w * 4 + j * 4 + 2] = 0;    //Blue
-				img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
+			for (int k = 0; k < scene.objects.size(); k++) {
+				Ray r = c.GetRay((float)x, (float)y); //giving camera the pixel to shoot ray through
+				//Intersection inter = FindIntersection(r, scene);
+				Sphere* s = dynamic_cast<Sphere*>(scene.objects[k]);
+				Intersection inter = s->Intersect(r);
+				//Intersection inter = FindIntersection(r, scene);
+				if (inter.collided == true) { //previously if vector is a null ptr...
+					Vector3 color = getColor(inter, scene, c.w);
+					img_data[i*img_w * 4 + j * 4] = color.x; //Red
+					img_data[i*img_w * 4 + j * 4 + 1] = color.y;  //Green
+					img_data[i*img_w * 4 + j * 4 + 2] = color.z;  //Blue
+					img_data[i*img_w * 4 + j * 4 + 3] = 255;  //Alpha
+				}
 			}
 		}
 	}
 
 	return img_data;
 }
-
 void mouseClicked(float m_x, float m_y) {
 	printf("Clicked at %f, %f\n", m_x, m_y);
 }
@@ -124,6 +143,128 @@ void mouseClicked(float m_x, float m_y) {
 void mouseDragged(float m_x, float m_y) {
 
 }
+
+Scene parsefile() {
+	string line;
+
+	string fileName = "spheres1.scn";
+
+	Scene result;
+	Material cur_matieral; //Current material
+
+	// open the file containing the scene description
+	ifstream input(fileName);
+
+	// check for errors in opening the file
+	if (input.fail()) {
+		cout << "Can't open file '" << fileName << "'" << endl;
+		return result;
+	}
+
+	// determine the file size (this is optional -- feel free to delete the 6 lines below)
+	streampos begin, end;
+	begin = input.tellg();
+	input.seekg(0, ios::end);
+	end = input.tellg();
+	cout << "File '" << fileName << "' is: " << (end - begin) << " bytes long.\n\n";
+	input.seekg(0, ios::beg);
+
+
+	//Loop through reading each line
+	string command;
+	while (input >> command) { //Read first word in the line (i.e., the command type)
+
+		if (command[0] == '#') {
+			getline(input, line); //skip rest of line
+			cout << "Skipping comment: " << command << line << endl;
+			continue;
+		}
+		if (command == "camera") { //If the command is a sphere command
+			float px, py, pz;
+			float dx, dy, dz;
+			float ux, uy, uz;
+			float ha;
+
+			input >> px >> py >> pz >> dx >> dy >> dz >> ux >> uy >> uz >> ha;
+
+			result.c = Camera(Vector3(px, py, pz), Vector3(dx, dy, dz), Vector3(ux, uy, uz), ha);
+			
+			
+			printf("Camera as position (%f,%f,%f)\n", px, py, pz);
+		}
+
+		else if (command == "film_resolution") {
+			float width, height;
+			input >> width >> height;
+			result.width = width;
+			result.height = height;
+			printf("Resolution is (%f,%f)\n", width, height);
+		}
+
+		else if (command == "point_light") {
+			float r, g, b;
+			float x, y, z;
+			input >> r >> g >> b >> x >> y >> z;
+			result.AddLight(Light(Vector3(x, y, z), Vector3(r, g, b)));
+			printf("Point Light at: (%f,%f,%f)\n", x, y, z);
+		}
+
+		else if (command == "ambient_light") {
+			float r, g, b;
+			input >> r >> g >> b;
+			result.ambient_light = Vector3(r, g, b);
+			printf("Ambient Light with color: (%f,%f,%f)\n", r, g, b);
+		}
+
+		else if (command == "sphere") { //If the command is a sphere command
+			float x, y, z, r;
+			input >> x >> y >> z >> r;
+			result.AddObject(new Sphere(x, y, z, r, cur_matieral));
+			printf("Sphere as position (%f,%f,%f) with radius %f\n", x, y, z, r);
+		}
+		else if (command == "background") { //If the command is a background command
+			float r, g, b;
+			input >> r >> g >> b;
+			result.background = Vector3(r * 255, g * 255, b * 255);
+			printf("Background color of (%f,%f,%f)\n", r, g, b);
+		}
+		else if (command == "output_image") { //If the command is an output_image command
+			string outFile;
+			input >> outFile;
+			printf("Render to file named: %s\n", outFile.c_str());
+		}
+		else if (command == "material") {
+			float ar, ag, ab;
+			float dr, dg, db;
+			float sr, sg, sb, ns;
+
+			input >> ar >> ag >> ab >> dr >> dg >> db >> sr >> sg >> sb >> ns;
+			cur_matieral = Material(Vector3(dr * 255, dg * 255, db * 255), Vector3(sr * 255, sg * 255, sb * 255), Vector3(ar * 255, ag * 255, ab * 255), ns);
+			printf("Material diffuse set to: (%f,%f,%f) \n", dr * 255, dg * 255, db * 255);
+			
+		}
+		else if (command == "max_depth") {
+			float n;
+			input >> n;
+			result.max_depth = n;
+			printf("Max Depth of : %f \n", n);
+		}
+		else {
+			getline(input, line); //skip rest of line
+			cout << "WARNING. Do not know command: " << command << endl;
+		}
+	}
+
+	return result;
+}
+
+
+
+
+
+
+
+
 
 
 
@@ -199,20 +340,23 @@ int main(int argc, char *argv[]) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+	// = Scene(Camera(), std::vector<Primitive*>(), std::vector<Light>());
+	Scene scene = parsefile();
+	unsigned char* img_data = raycast(scene);
 	int img_w = screen_width;
 	int img_h = screen_height;
-	unsigned char* img_data = raycast();
 
 	//Load the texture into memory
+	printf("Spot 1");
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img_w, img_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	// End Allocate Texture //
-
+	printf("Spot 2");
 	//Build a Vertex Array Object. This stores the VBO and attribute mappings in one object
 	GLuint vao;
 	glGenVertexArrays(1, &vao); //Create a VAO
 	glBindVertexArray(vao); //Bind the above created VAO to the current context
-
+	printf("Spot 3");
 
 	//Allocate memory on the graphics card to store geometry (vertex buffer object)
 	GLuint vbo;

@@ -6,12 +6,13 @@
 
 #include <stdint.h>
 #include "Primitive.h"
+#include "Material.h"
 
 class Sphere : public Primitive {
 public:
 	float r; // Radius of sphere
-	Vector3 color;
-	Sphere(float x_, float y_, float z_, float r_, Vector3 color_) : Primitive(x_, y_, z_), r(r_), color(color_) {}
+	Material mat;
+	Sphere(float x_, float y_, float z_, float r_, Material mat_) : Primitive(x_, y_, z_), r(r_), mat(mat_) {}
 
 	Intersection Intersect(Ray ray) { //if a ray hits this sphere, return a pointer
 												 //to this sphere, else return null.
@@ -39,14 +40,14 @@ public:
 		if (t0 > 0) {
 			Vector3 poi = p + d*t0; //point of intersection
 			Vector3 normal = poi - Vector3(x,y,z); //point it hit - origin of sphere
-			return Intersection(color, t0, true, normal, poi); //Return the smallest positive t value (first point of intersection)
+			return Intersection(mat, t0, true, normal, poi); //Return the smallest positive t value (first point of intersection)
 		}
 		else {
 			float t1 = (-B - sqrt(disc)) / 2;
 			if (t1 > 0) {
 				Vector3 poi = p + d*t1; //point of intersection
 				Vector3 normal = poi - Vector3(x,y,z);//point it hit - origin of sphere
-				return Intersection(color, t1, true, normal, poi);
+				return Intersection(mat, t1, true, normal, poi);
 			}
 		}
 	};
